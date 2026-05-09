@@ -1,5 +1,4 @@
 import struct
-import math
 
 class JazzNote:
     """Represents a musical note with struct-based storage"""
@@ -22,13 +21,13 @@ class JazzNote:
         self.is_rest = is_rest
     
     def to_bytes(self):
-        """Pack note data into binary format"""
+        """Pack note data into binary format using struct"""
         return struct.pack(self.FORMAT, self.pitch, self.duration, 
                           self.velocity, self.is_rest)
     
     @classmethod
     def from_bytes(cls, data):
-        """Unpack binary data into a JazzNote"""
+        """Unpack binary data into a JazzNote using struct"""
         pitch, duration, velocity, is_rest = struct.unpack(cls.FORMAT, data)
         return cls(pitch, duration, velocity, is_rest)
     
@@ -59,7 +58,7 @@ class JazzChord:
         Initialize a jazz chord
         root_pitch: MIDI note number for the root
         chord_type: type of chord (see CHORD_PATTERNS)
-        octave: octave offset multiplier (12 semitones)
+        octave: octave offset multiplier (12 semitones per octave)
         duration: chord duration in beats
         """
         self.root_pitch = root_pitch
@@ -68,10 +67,11 @@ class JazzChord:
         self.notes = self._build_chord(octave)
     
     def _build_chord(self, octave):
-        """Build chord notes based on pattern"""
+        """Build chord notes based on the selected pattern"""
         pattern = self.CHORD_PATTERNS.get(self.chord_type, [0, 4, 7])
         notes = []
         for interval in pattern:
+            # Calculate MIDI pitch: root + interval within octave + octave offset
             pitch = self.root_pitch + interval + (octave * 12)
             notes.append(JazzNote(pitch, self.duration, velocity=90))
         return notes
@@ -89,8 +89,8 @@ class JazzPiece:
     def __init__(self, tempo=120, time_signature=(4, 4)):
         """
         Initialize a jazz piece
-        tempo: BPM
-        time_signature: (beats, note_value)
+        tempo: BPM (beats per minute)
+        time_signature: (beats per measure, note value)
         """
         self.tempo = tempo
         self.time_signature = time_signature
@@ -100,26 +100,27 @@ class JazzPiece:
         self._add_harmony()
     
     def _build_melody(self):
-        """Build a jazz melody in C Major"""
+        """Build a jazz melody in C Major scale"""
         print("Building jazz melody in C Major...")
         
-        # Melody sequence: notes in C Major scale
-        # C Major scale: C, D, E, F, G, A, B (repeating)
+        # Melody sequence: notes in C Major scale with varying durations
+        # C Major scale degrees: C, D, E, F, G, A, B
         c_major_melody = [
             (self.MIDI_C, 0.5),      # C - eighth note
-            (self.MIDI_C + 2, 0.5),  # D
+            (self.MIDI_C + 2, 0.5),  # D - eighth note
             (self.MIDI_C + 4, 1.0),  # E - quarter note
-            (self.MIDI_C + 5, 0.5),  # F
-            (self.MIDI_C + 7, 0.5),  # G
-            (self.MIDI_C + 9, 1.5),  # A - dotted quarter
-            (self.MIDI_C + 11, 0.5), # B
-            (self.MIDI_C + 12, 2.0), # C (octave) - half note
-            (self.MIDI_C + 7, 0.5),  # G - back down
+            (self.MIDI_C + 5, 0.5),  # F - eighth note
+            (self.MIDI_C + 7, 0.5),  # G - eighth note
+            (self.MIDI_C + 9, 1.5),  # A - dotted quarter note
+            (self.MIDI_C + 11, 0.5), # B - eighth note
+            (self.MIDI_C + 12, 2.0), # C (octave higher) - half note
+            (self.MIDI_C + 7, 0.5),  # G - descending back down
             (self.MIDI_C + 5, 0.5),  # F
             (self.MIDI_C + 4, 1.0),  # E
-            (self.MIDI_C + 2, 2.0),  # D
+            (self.MIDI_C + 2, 2.0),  # D - half note
         ]
         
+        # Create JazzNote objects and add to sequence
         for pitch, duration in c_major_melody:
             note = JazzNote(pitch, duration, velocity=100)
             self.sequence.append(note)
@@ -129,7 +130,7 @@ class JazzPiece:
         print("Adding jazz chord harmony...")
         
         # Chord progression: Cmaj7 - Am7 - Dm7 - G7
-        # Common jazz ii-V-I progression in C Major
+        # This is a classic jazz ii-V-I progression in C Major
         chords = [
             JazzChord(self.MIDI_C, 'maj7', octave=3, duration=4.0),      # Cmaj7
             JazzChord(self.MIDI_C + 9, 'min7', octave=3, duration=4.0),  # Am7
@@ -140,19 +141,19 @@ class JazzPiece:
         self.harmony = chords
     
     def serialize(self):
-        """Serialize the piece to binary format"""
+        """Serialize the piece to binary format using struct"""
         print("Serializing jazz piece to binary...")
         
         # Pack header: tempo (int), beats_per_measure (int), sequence_length (int)
         header = struct.pack('III', self.tempo, self.beats_per_measure, len(self.sequence))
         
-        # Pack all notes
+        # Pack all note objects into binary data
         notes_data = b''.join(note.to_bytes() for note in self.sequence)
         
         return header + notes_data
     
     def display_composition(self):
-        """Display the jazz piece information"""
+        """Display the jazz piece information and binary details"""
         print("\n" + "="*60)
         print("JAZZ PIECE IN C MAJOR".center(60))
         print("="*60)
@@ -186,22 +187,22 @@ class JazzPiece:
 def main():
     """Generate and display a jazz piece in C Major"""
     
-    # Create a jazz piece
+    # Create a jazz piece with standard parameters
     jazz = JazzPiece(tempo=120, time_signature=(4, 4))
     
-    # Display the composition
+    # Display the complete composition
     jazz.display_composition()
     
-    # Demonstrate deserialization
+    # Demonstrate deserialization of binary data
     print("\n--- DESERIALIZATION DEMO ---")
     binary = jazz.serialize()
     
-    # Unpack header
+    # Unpack the header to retrieve metadata
     header_size = struct.calcsize('III')
     tempo, beats, seq_len = struct.unpack('III', binary[:header_size])
     print(f"Unpacked Header: Tempo={tempo} BPM, Beats={beats}/4, Sequence Length={seq_len}")
     
-    # Unpack first 3 notes to demonstrate
+    # Unpack first 3 notes to demonstrate struct.unpack in action
     print(f"\nFirst 3 Notes (reconstructed from binary):")
     for i in range(3):
         offset = header_size + (i * JazzNote.SIZE)
